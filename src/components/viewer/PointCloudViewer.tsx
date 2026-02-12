@@ -1,0 +1,167 @@
+import { Suspense, useRef, useEffect } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
+import { OrbitControls, Grid } from "@react-three/drei";
+import * as THREE from "three";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useViewerStore, useNodeStore } from "@/stores";
+import { PointCloudRenderer } from "./PointCloudRenderer";
+import { PathOverlay } from "./PathOverlay";
+import { NodeOverlay } from "./NodeOverlay";
+import { PendingNodeMarker } from "./PendingNodeMarker";
+import { PlacementRaycastPlane } from "./PlacementRaycastPlane";
+
+function CameraController() {
+  const viewMode = useViewerStore((s) => s.viewMode);
+  const floorPath = useViewerStore((s) => s.floorPath);
+  const pointCloudData = useViewerStore((s) => s.pointCloudData);
+  const isPlacementMode = useNodeStore((s) => s.isPlacementMode);
+  const { camera } = useThree();
+  const controlsRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
+
+  useEffect(() => {
+    if (!controlsRef.current) return;
+    const controls = controlsRef.current;
+
+    if (viewMode === "top-down") {
+      camera.position.set(0, 20, 0);
+      camera.lookAt(0, 0, 0);
+      controls.maxPolarAngle = 0;
+      controls.minPolarAngle = 0;
+    } else if (viewMode === "first-person") {
+      camera.position.set(0, 1, 0);
+      camera.lookAt(1, 1, 0);
+      controls.maxPolarAngle = Math.PI;
+      controls.minPolarAngle = 0;
+    } else {
+      camera.position.set(5, 5, 5);
+      camera.lookAt(0, 0, 0);
+      controls.maxPolarAngle = Math.PI;
+      controls.minPolarAngle = 0;
+    }
+    controls.update();
+  }, [viewMode, camera]);
+
+  useEffect(() => {
+    if (!floorPath && !pointCloudData) return;
+    if (!controlsRef.current) return;
+
+    if (floorPath && floorPath.bounds) {
+      const { minX, maxX, minY, maxY } = floorPath.bounds;
+      const cx = (minX + maxX) / 2;
+      const cz = (minY + maxY) / 2; // API's Y → Three.js Z
+      const rangeX = maxX - minX;
+      const rangeZ = maxY - minY;
+      const dist = Math.max(rangeX, rangeZ) * 1.5;
+
+      if (viewMode === "top-down") {
+        camera.position.set(cx, dist, cz);
+      } else {
+        camera.position.set(cx + dist * 0.5, dist * 0.5, cz + dist * 0.5);
+      }
+      camera.lookAt(cx, 0, cz);
+      controlsRef.current.target.set(cx, 0, cz);
+      controlsRef.current.update();
+    }
+  }, [floorPath, pointCloudData, camera, viewMode]);
+
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      enabled={!isPlacementMode}
+      enableDamping
+      dampingFactor={0.1}
+      rotateSpeed={0.5}
+      zoomSpeed={1.2}
+      panSpeed={0.8}
+      makeDefault
+    />
+  );
+}
+
+function SceneContent() {
+  return (
+    <>
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[10, 10, 5]} intensity={0.8} />
+      <Grid
+        args={[100, 100]}
+        cellSize={1}
+        cellThickness={0.5}
+        cellColor="#3f3f46"
+        sectionSize={5}
+        sectionThickness={1}
+        sectionColor="#52525b"
+        fadeDistance={50}
+        fadeStrength={1}
+        infiniteGrid
+        position={[0, -0.01, 0]}
+      />
+      <PointCloudRenderer />
+      <PathOverlay />
+      <NodeOverlay />
+      <PendingNodeMarker />
+      <PlacementRaycastPlane />
+      <CameraController />
+    </>
+  );
+}
+
+function LoadingPlaceholder() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-4">
+      <Skeleton className="w-full h-full rounded-lg" />
+    </div>
+  );
+}
+
+export function PointCloudViewer() {
+  const selectedFloorId = useViewerStore((s) => s.selectedFloorId);
+  const isLoadingPointCloud = useViewerStore((s) => s.isLoadingPointCloud);
+  const isPlacementMode = useNodeStore((s) => s.isPlacementMode);
+
+  if (!selectedFloorId) {
+    return (
+      <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20">
+        <div className="text-center space-y-2">
+          <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
+              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+              <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" />
+            </svg>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            우측 패널에서 층을 선택하면
+            <br />
+            3D 포인트클라우드를 확인할 수 있습니다.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoadingPointCloud) {
+    return (
+      <div className="flex-1 rounded-lg border overflow-hidden">
+        <LoadingPlaceholder />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 rounded-lg border overflow-hidden bg-zinc-950" style={{ cursor: isPlacementMode ? "crosshair" : undefined }}>
+      <Suspense fallback={<LoadingPlaceholder />}>
+        <Canvas
+          camera={{ position: [5, 5, 5], fov: 60, near: 0.01, far: 1000 }}
+          gl={{
+            antialias: true,
+            toneMapping: THREE.ACESFilmicToneMapping,
+            toneMappingExposure: 1.2,
+          }}
+          style={{ width: "100%", height: "100%", cursor: isPlacementMode ? "crosshair" : undefined }}
+        >
+          <SceneContent />
+        </Canvas>
+      </Suspense>
+    </div>
+  );
+}
