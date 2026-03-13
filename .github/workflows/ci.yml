@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: pnpm install
-      - run: pnpm run build
+      - run: npm install
+      - run: npm run build
         env:
           VITE_SERVER_URL: ${{ secrets.VITE_SERVER_URL }}
       - uses: actions/configure-pages@v5
