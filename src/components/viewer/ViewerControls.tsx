@@ -22,7 +22,6 @@ export function ViewerControls({ isFullscreen = false, onToggleFullscreen, varia
   const viewMode = useViewerStore((s) => s.viewMode);
   const setViewMode = useViewerStore((s) => s.setViewMode);
   const selectedFloorId = useViewerStore((s) => s.selectedFloorId);
-  const building = useViewerStore((s) => s.building);
   const showPointcloud = useViewerStore((s) => s.showPointcloud);
   const setShowPointcloud = useViewerStore((s) => s.setShowPointcloud);
   const pointSize = useViewerStore((s) => s.pointSize);
