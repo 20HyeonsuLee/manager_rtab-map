@@ -297,6 +297,7 @@ export interface ChunkResponse {
 }
 
 export type MergedScanStatus =
+  | "IDLE"
   | "MERGING"
   | "MERGED"
   | "MERGE_FAILED"
