@@ -99,4 +99,26 @@ test.describe("manager_rtab-map smoke", () => {
     const sawAreas = responses.some((r) => /\/floors\/[^/]+\/areas/.test(r.url));
     expect(sawAreas, `expected /floors/{id}/areas request. got: ${JSON.stringify(responses)}`).toBe(true);
   });
+
+  test("신규 mutation: 빌딩 두 개 생성 → batch delete → 404", async ({ request }) => {
+    const tag = `e2e-${Date.now()}`;
+    const created: string[] = [];
+    for (const suffix of ["a", "b"]) {
+      const res = await request.post(`${SERVER}/api/v1/buildings`, {
+        data: { name: `${tag}-${suffix}`, description: "playwright batch delete test" },
+      });
+      expect(res.status()).toBe(201);
+      const body = await res.json();
+      expect(body.buildingId).toBeTruthy();
+      created.push(body.buildingId);
+    }
+
+    const del = await request.delete(`${SERVER}/api/v1/buildings/batch`, { data: created });
+    expect(del.status()).toBe(204);
+
+    for (const id of created) {
+      const got = await request.get(`${SERVER}/api/v1/buildings/${id}`);
+      expect(got.status()).toBe(404);
+    }
+  });
 });
