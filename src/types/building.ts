@@ -196,6 +196,7 @@ export interface PathEdgeResponse {
   toNodeId: string;
   edgeType: EdgeType;
   lengthM: number;
+  widthM: number | null;
 }
 
 export interface FloorGraphResponse {
@@ -228,6 +229,8 @@ export interface EdgeCreateRequest {
 
 export interface EdgeUpdateRequest {
   edgeType?: EdgeType;
+  widthM?: number;
+  clearWidth?: boolean;
 }
 
 // Vertical Connector (수직 연결 — 옛 passage 대체)

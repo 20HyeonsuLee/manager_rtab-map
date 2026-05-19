@@ -258,6 +258,10 @@ export function GraphEditorOverlay() {
                 position={center}
                 quaternion={quaternion}
                 onClick={(e) => handleEdgeClick(e, edge.edgeId)}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  useGraphEditorStore.getState().setEdgeWidthDialogId(edge.edgeId);
+                }}
               >
                 <cylinderGeometry args={[0.25, 0.25, length, 8]} />
                 <meshBasicMaterial transparent opacity={0} depthWrite={false} />

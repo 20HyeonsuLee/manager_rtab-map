@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Orbit, Scan, Settings2,
   Hand, Plus, GitBranch, Trash2, RotateCcw, MapPin, X, HelpCircle, Link,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -49,12 +50,24 @@ export function ViewerToolbar() {
 
   const longPressNodeId = useGraphEditorStore((s) => s.longPressNodeId);
   const setLongPressNodeId = useGraphEditorStore((s) => s.setLongPressNodeId);
+  const edgeWidthDialogId = useGraphEditorStore((s) => s.edgeWidthDialogId);
+  const setEdgeWidthDialogId = useGraphEditorStore((s) => s.setEdgeWidthDialogId);
   const nodes = useGraphEditorStore((s) => s.nodes);
+  const edges = useGraphEditorStore((s) => s.edges);
+  const updateEdge = useGraphEditorStore((s) => s.updateEdge);
   const fetchGraph = useGraphEditorStore((s) => s.fetchGraph);
 
   const [helpOpen, setHelpOpen] = useState(false);
+  const [widthInput, setWidthInput] = useState("");
   const hasSelection = !!(selectedNodeId || selectedEdgeId);
   const longPressNode = nodes.find((n) => n.nodeId === longPressNodeId);
+  const widthDialogEdge = edges.find((e) => e.edgeId === edgeWidthDialogId);
+
+  useEffect(() => {
+    if (widthDialogEdge) {
+      setWidthInput(widthDialogEdge.widthM != null ? String(widthDialogEdge.widthM) : "");
+    }
+  }, [widthDialogEdge?.edgeId]);
 
   async function handleChangeType(newType: NodeType) {
     if (!longPressNodeId || !selectedFloorId) return;
@@ -64,6 +77,22 @@ export function ViewerToolbar() {
       toast.success("노드 타입이 변경되었습니다.");
     } catch { /* interceptor */ }
     setLongPressNodeId(null);
+  }
+
+  async function handleApplyWidth() {
+    if (!edgeWidthDialogId) return;
+    const trimmed = widthInput.trim();
+    if (trimmed === "") {
+      await updateEdge(edgeWidthDialogId, { clearWidth: true });
+    } else {
+      const value = Number(trimmed);
+      if (!Number.isFinite(value) || value <= 0) {
+        toast.error("0보다 큰 숫자를 입력하세요.");
+        return;
+      }
+      await updateEdge(edgeWidthDialogId, { widthM: value });
+    }
+    setEdgeWidthDialogId(null);
   }
 
   return (
@@ -259,6 +288,47 @@ export function ViewerToolbar() {
             <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setLongPressNodeId(null)}>
               취소
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edge corridor width dialog (double click) */}
+      <Dialog open={!!edgeWidthDialogId} onOpenChange={(open) => { if (!open) setEdgeWidthDialogId(null); }}>
+        <DialogContent className="sm:max-w-[300px]">
+          <DialogHeader>
+            <DialogTitle className="text-sm">복도 폭 설정</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-[11px] text-muted-foreground">
+              엣지 ID: <code className="font-mono">{edgeWidthDialogId?.slice(0, 8)}…</code>
+              {widthDialogEdge && (
+                <>
+                  {" · 길이: "}
+                  <span className="font-mono text-foreground">{widthDialogEdge.lengthM.toFixed(2)}m</span>
+                </>
+              )}
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">폭 (m)</Label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="예: 1.5"
+                value={widthInput}
+                onChange={(e) => setWidthInput(e.target.value)}
+                autoFocus
+              />
+              <p className="text-[10px] text-muted-foreground">빈 칸으로 두면 폭이 해제됩니다.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setEdgeWidthDialogId(null)}>
+                취소
+              </Button>
+              <Button size="sm" className="flex-1 text-xs" onClick={handleApplyWidth}>
+                저장
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

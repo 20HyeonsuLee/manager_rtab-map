@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import * as api from "@/api";
 import { useViewerStore } from "./viewer-store";
-import type { PathNodeResponse, PathEdgeResponse, NodeType, EdgeType } from "@/types";
+import type { PathNodeResponse, PathEdgeResponse, NodeType, EdgeType, EdgeUpdateRequest } from "@/types";
 
 export type EditorMode = "view" | "add-node" | "add-edge" | "select";
 export type PlaceableNodeType = "corridor" | "junction" | "endpoint" | "poi_attach";
@@ -21,13 +21,14 @@ interface GraphEditorState {
   autoConnect: boolean;
   lastPlacedNodeId: string | null;
   longPressNodeId: string | null;
+  edgeWidthDialogId: string | null;
 
   setEditorActive: (active: boolean) => void;
   fetchGraph: (floorId: string, areaId?: string) => Promise<void>;
   createNode: (areaId: string, x: number, y: number, z: number, nodeType: NodeType) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<void>;
   createEdge: (areaId: string, fromNodeId: string, toNodeId: string, edgeType?: EdgeType) => Promise<void>;
-  updateEdge: (edgeId: string, edgeType: EdgeType) => Promise<void>;
+  updateEdge: (edgeId: string, body: EdgeUpdateRequest) => Promise<void>;
   deleteEdge: (edgeId: string) => Promise<void>;
   clearManualGraph: (areaId: string) => Promise<void>;
 
@@ -39,6 +40,7 @@ interface GraphEditorState {
   setNodeTypeToPlace: (nodeType: PlaceableNodeType) => void;
   setAutoConnect: (enabled: boolean) => void;
   setLongPressNodeId: (nodeId: string | null) => void;
+  setEdgeWidthDialogId: (edgeId: string | null) => void;
   reset: () => void;
 }
 
@@ -55,6 +57,7 @@ const initialState = {
   autoConnect: true,
   lastPlacedNodeId: null as string | null,
   longPressNodeId: null as string | null,
+  edgeWidthDialogId: null as string | null,
 };
 
 export const useGraphEditorStore = create<GraphEditorState>((set, get) => ({
@@ -147,8 +150,8 @@ export const useGraphEditorStore = create<GraphEditorState>((set, get) => ({
     toast.success("엣지가 생성되었습니다.");
   },
 
-  updateEdge: async (edgeId, edgeType) => {
-    const updated = await api.updateEdge(edgeId, { edgeType });
+  updateEdge: async (edgeId, body) => {
+    const updated = await api.updateEdge(edgeId, body);
     set({
       edges: get().edges.map((e) => (e.edgeId === edgeId ? updated : e)),
     });
@@ -196,6 +199,7 @@ export const useGraphEditorStore = create<GraphEditorState>((set, get) => ({
   setNodeTypeToPlace: (nodeType) => set({ nodeTypeToPlace: nodeType }),
   setAutoConnect: (enabled) => set({ autoConnect: enabled, lastPlacedNodeId: null }),
   setLongPressNodeId: (nodeId) => set({ longPressNodeId: nodeId }),
+  setEdgeWidthDialogId: (edgeId) => set({ edgeWidthDialogId: edgeId }),
 
   reset: () => set(initialState),
 }));
