@@ -292,7 +292,7 @@ function ModeBar({ isFps }: { isFps: boolean }) {
   const autoConnect = useGraphEditorStore((s) => s.autoConnect);
   const floors = useViewerStore((s) => s.floors);
   const selectedFloorId = useViewerStore((s) => s.selectedFloorId);
-  const currentFloorIdx = floors.findIndex((f) => f.id === selectedFloorId);
+  const currentFloorIdx = floors.findIndex((f) => f.floorId === selectedFloorId);
   const currentFloor = currentFloorIdx >= 0 ? floors[currentFloorIdx] : null;
 
   let activeId = "view";
@@ -388,15 +388,15 @@ export function PointCloudViewer() {
         case "KeyZ": {
           e.preventDefault();
           const floors = vs.floors;
-          const idx = floors.findIndex((f) => f.id === vs.selectedFloorId);
-          if (idx > 0) vs.loadFloorData(floors[idx - 1].id);
+          const idx = floors.findIndex((f) => f.floorId === vs.selectedFloorId);
+          if (idx > 0) vs.loadFloorData(floors[idx - 1].floorId);
           break;
         }
         case "KeyX": {
           e.preventDefault();
           const floors = vs.floors;
-          const idx = floors.findIndex((f) => f.id === vs.selectedFloorId);
-          if (idx >= 0 && idx < floors.length - 1) vs.loadFloorData(floors[idx + 1].id);
+          const idx = floors.findIndex((f) => f.floorId === vs.selectedFloorId);
+          if (idx >= 0 && idx < floors.length - 1) vs.loadFloorData(floors[idx + 1].floorId);
           break;
         }
 

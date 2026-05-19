@@ -37,7 +37,7 @@ export function Viewer3DTab({ floors }: Viewer3DTabProps) {
     setShowPOI(true);
     setShowPointcloud(true);
     setEditorActive(true);
-    if (currentBuilding?.id) fetchPois(currentBuilding.id).catch(console.error);
+    if (currentBuilding?.buildingId) fetchPois(currentBuilding.buildingId).catch(console.error);
     return () => { viewerReset(); poiReset(); graphReset(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floors, currentBuilding]);
@@ -62,7 +62,7 @@ export function Viewer3DTab({ floors }: Viewer3DTabProps) {
       <PointCloudViewer />
       <ViewerToolbar />
       {currentBuilding && (
-        <CreatePOIDialog buildingId={currentBuilding.id} open={createPoiDialogOpen} onOpenChange={setCreatePoiDialogOpen} />
+        <CreatePOIDialog buildingId={currentBuilding.buildingId} open={createPoiDialogOpen} onOpenChange={setCreatePoiDialogOpen} />
       )}
       <POIDetailSheet poiId={selectedPoiId} open={selectedPoiId !== null} onOpenChange={(open) => { if (!open) selectPoi(null); }} />
     </div>

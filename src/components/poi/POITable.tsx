@@ -151,7 +151,7 @@ function POICard({ poi, selectMode, isSelected, onToggleSelect, onLongPress }: {
     if (selectMode) onToggleSelect();
   }
 
-  const floor = building?.floors.find((f) => f.id === poi.floorId);
+  const floor = building?.floors.find((f) => f.floorId === poi.floorId);
   const categoryKey = poi.category?.toLowerCase() ?? "other";
   const categoryLabel = POI_CATEGORY_LABELS[categoryKey] ?? poi.category;
   const categoryColor = POI_CATEGORY_COLORS[categoryKey] ?? "outline";

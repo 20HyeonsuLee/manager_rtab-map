@@ -101,7 +101,7 @@ export default function BuildingDetailPage() {
         ),
       });
     }
-  }, [currentBuilding?.id]);
+  }, [currentBuilding?.buildingId]);
 
   async function handleDelete() {
     if (!id) return;
@@ -132,22 +132,22 @@ export default function BuildingDetailPage() {
         )}
         {activeTab === "floors" && (
           <div className="p-3 sm:p-4 max-w-3xl mx-auto">
-            <FloorTable buildingId={currentBuilding.id} floors={currentBuilding.floors} />
+            <FloorTable buildingId={currentBuilding.buildingId} floors={currentBuilding.floors} />
           </div>
         )}
         {activeTab === "pois" && (
           <div className="p-3 sm:p-4 max-w-3xl mx-auto">
-            <POITable buildingId={currentBuilding.id} />
+            <POITable buildingId={currentBuilding.buildingId} />
           </div>
         )}
         {activeTab === "connectors" && (
           <div className="p-3 sm:p-4 max-w-3xl mx-auto">
-            <ConnectorsTab buildingId={currentBuilding.id} />
+            <ConnectorsTab buildingId={currentBuilding.buildingId} />
           </div>
         )}
         {activeTab === "lobby" && (
           <div className="p-3 sm:p-4 max-w-5xl mx-auto">
-            <LobbyTab buildingId={currentBuilding.id} />
+            <LobbyTab buildingId={currentBuilding.buildingId} />
           </div>
         )}
       </div>

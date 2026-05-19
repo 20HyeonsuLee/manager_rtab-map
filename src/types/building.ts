@@ -1,20 +1,20 @@
 export type BuildingStatus = "DRAFT" | "PROCESSING" | "ACTIVE";
 
 export interface BuildingResponse {
-  id: string;
+  buildingId: string;
   name: string;
   description: string;
   latitude: number;
   longitude: number;
   status: BuildingStatus;
-  floorCount: number;
-  passageCount: number;
+  floorCount?: number;
+  passageCount?: number;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface BuildingDetailResponse {
-  id: string;
+  buildingId: string;
   name: string;
   description: string;
   latitude: number;
@@ -27,12 +27,16 @@ export interface BuildingDetailResponse {
 }
 
 export interface FloorResponse {
-  id: string;
+  floorId: string;
+  buildingId: string;
   name: string;
   level: number;
-  height: number;
+  height: number | null;
   hasPath: boolean;
   hasPly: boolean;
+  activeScanId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type VerticalPassageType = "STAIRCASE" | "ELEVATOR";

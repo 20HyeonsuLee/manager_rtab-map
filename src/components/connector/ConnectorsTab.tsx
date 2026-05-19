@@ -153,7 +153,7 @@ function StopRow({ connectorId, stop }: { connectorId: string; stop: ConnectorSt
   const removeStop = useConnectorStore((s) => s.removeStop);
   const updateStop = useConnectorStore((s) => s.updateStop);
   const building = useBuildingStore((s) => s.currentBuilding);
-  const floor = building?.floors.find((f) => f.id === stop.floorId);
+  const floor = building?.floors.find((f) => f.floorId === stop.floorId);
 
   async function handleDetach() {
     await updateStop(connectorId, stop.stopId, { detachRouteNode: true });
