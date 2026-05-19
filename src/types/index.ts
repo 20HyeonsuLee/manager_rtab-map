@@ -21,8 +21,6 @@ export type {
   PoiCreateRequest,
   PoiUpdateRequest,
   PoiAttachRequest,
-  NodeImagesRequest,
-  NodeImageResponse,
   NodeType,
   EdgeType,
   PathNodeResponse,

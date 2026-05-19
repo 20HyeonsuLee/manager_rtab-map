@@ -7,6 +7,7 @@ import { useGraphEditorStore, useViewerStore, usePoiStore } from "@/stores";
 import { threeToApi } from "@/lib/utils";
 import * as graphApi from "@/api/graph";
 import { setFloorY } from "./PointCloudViewer";
+import type { PathNodeResponse, PathEdgeResponse } from "@/types";
 
 interface PointcloudMeshProps {
   plyUrl: string | null;
@@ -14,17 +15,17 @@ interface PointcloudMeshProps {
 
 function findNearestEdge(
   apiX: number, apiY: number,
-  nodes: { id: string; x: number; y: number }[],
-  edges: { id: string; fromNodeId: string; toNodeId: string; edgeType: string }[],
+  nodes: PathNodeResponse[],
+  edges: PathEdgeResponse[],
 ) {
-  let bestEdge = null;
+  let bestEdge: PathEdgeResponse | null = null;
   let bestProj = { x: 0, y: 0 };
   let bestDist = Infinity;
 
   for (const edge of edges) {
-    if (edge.edgeType !== "HORIZONTAL") continue;
-    const from = nodes.find((n) => n.id === edge.fromNodeId);
-    const to = nodes.find((n) => n.id === edge.toNodeId);
+    if (edge.edgeType !== "rtabmap_link") continue;
+    const from = nodes.find((n) => n.nodeId === edge.fromNodeId);
+    const to = nodes.find((n) => n.nodeId === edge.toNodeId);
     if (!from || !to) continue;
 
     const dx = to.x - from.x;
@@ -54,7 +55,7 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
   const editorMode = useGraphEditorStore((s) => s.editorMode);
   const createNode = useGraphEditorStore((s) => s.createNode);
   const nodeTypeToPlace = useGraphEditorStore((s) => s.nodeTypeToPlace);
-  const setPendingPassageInfo = useGraphEditorStore((s) => s.setPendingPassageInfo);
+  const selectedAreaId = useViewerStore((s) => s.selectedAreaId);
   const selectedFloorId = useViewerStore((s) => s.selectedFloorId);
   const pointSize = useViewerStore((s) => s.pointSize);
   const isPlacementMode = usePoiStore((s) => s.isPlacementMode);
@@ -182,21 +183,24 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
       }
       const setPendingPoiTarget = usePoiStore.getState().setPendingPoiTarget;
 
-      let nearestNode = null;
+      let nearestNode: PathNodeResponse | null = null;
       let nearestNodeDist = Infinity;
       for (const node of nodes) {
         const dist = Math.hypot(node.x - apiCoords.x, node.y - apiCoords.y);
         if (dist < nearestNodeDist) { nearestNodeDist = dist; nearestNode = node; }
       }
       if (nearestNode && nearestNodeDist < 0.5) {
-        setPendingPoiTarget({ x: nearestNode.x, y: nearestNode.y, z: nearestNode.z, targetNodeId: nearestNode.id });
+        setPendingPoiTarget({
+          x: nearestNode.x, y: nearestNode.y, z: nearestNode.z,
+          existingNodeId: nearestNode.nodeId,
+        });
         return;
       }
       const edgeHit = findNearestEdge(apiCoords.x, apiCoords.y, nodes, edges);
       if (edgeHit) {
         setPendingPoiTarget({
           x: edgeHit.projectedX, y: edgeHit.projectedY, z: apiCoords.z,
-          splitEdge: { edgeId: edgeHit.edge.id, fromNodeId: edgeHit.edge.fromNodeId, toNodeId: edgeHit.edge.toNodeId },
+          splitEdge: { edgeId: edgeHit.edge.edgeId, fromNodeId: edgeHit.edge.fromNodeId, toNodeId: edgeHit.edge.toNodeId },
         });
         return;
       }
@@ -205,10 +209,10 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
     }
 
     // 노드 배치
-    if (editorMode !== "add-node" || !selectedFloorId) return;
-
-    if (nodeTypeToPlace === "STAIRCASE" || nodeTypeToPlace === "ELEVATOR") {
-      setPendingPassageInfo({ x: apiCoords.x, y: apiCoords.y, z: apiCoords.z, passageType: nodeTypeToPlace });
+    if (editorMode !== "add-node" || !selectedAreaId) {
+      if (editorMode === "add-node" && !selectedAreaId) {
+        toast.error("Area를 먼저 선택하세요.");
+      }
       return;
     }
 
@@ -217,22 +221,24 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
 
     if (edgeHit) {
       try {
-        const newNode = await graphApi.createNode(selectedFloorId, {
-          x: edgeHit.projectedX, y: edgeHit.projectedY, z: apiCoords.z, type: "WAYPOINT",
+        const newNode = await graphApi.createNode(selectedAreaId, {
+          x: edgeHit.projectedX, y: edgeHit.projectedY, z: apiCoords.z, nodeType: nodeTypeToPlace,
         });
-        await graphApi.deleteEdge(edgeHit.edge.id);
-        await graphApi.createEdge(selectedFloorId, { fromNodeId: edgeHit.edge.fromNodeId, toNodeId: newNode.id, isBidirectional: true });
-        await graphApi.createEdge(selectedFloorId, { fromNodeId: newNode.id, toNodeId: edgeHit.edge.toNodeId, isBidirectional: true });
+        await graphApi.deleteEdge(edgeHit.edge.edgeId);
+        await graphApi.createEdge(selectedAreaId, { fromNodeId: edgeHit.edge.fromNodeId, toNodeId: newNode.nodeId });
+        await graphApi.createEdge(selectedAreaId, { fromNodeId: newNode.nodeId, toNodeId: edgeHit.edge.toNodeId });
         if (autoConnect && lastPlacedNodeId) {
-          try { await graphApi.createEdge(selectedFloorId, { fromNodeId: lastPlacedNodeId, toNodeId: newNode.id, isBidirectional: true }); } catch { /* ignore */ }
+          try { await graphApi.createEdge(selectedAreaId, { fromNodeId: lastPlacedNodeId, toNodeId: newNode.nodeId }); } catch { /* ignore */ }
         }
-        useGraphEditorStore.setState({ lastPlacedNodeId: newNode.id });
-        await useGraphEditorStore.getState().fetchGraph(selectedFloorId);
+        useGraphEditorStore.setState({ lastPlacedNodeId: newNode.nodeId });
+        if (selectedFloorId) {
+          await useGraphEditorStore.getState().fetchGraph(selectedFloorId, selectedAreaId);
+        }
         return;
       } catch { toast.error("엣지 분할 실패"); return; }
     }
 
-    createNode(selectedFloorId, apiCoords.x, apiCoords.y, apiCoords.z, "WAYPOINT");
+    createNode(selectedAreaId, apiCoords.x, apiCoords.y, apiCoords.z, nodeTypeToPlace);
   }
 
   if (!geometry) return null;

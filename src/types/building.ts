@@ -312,19 +312,3 @@ export interface MergedScanResponse {
   createdAt: string;
   updatedAt: string;
 }
-
-export interface NodeImagesRequest {
-  x: number;
-  y: number;
-  z: number;
-}
-
-export interface NodeImageResponse {
-  nodeId: number;
-  x: number;
-  y: number;
-  z: number;
-  distance: number;
-  cameraAngle: number;
-  imageUrl: string;
-}

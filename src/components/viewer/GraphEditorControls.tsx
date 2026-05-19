@@ -8,17 +8,17 @@ import { useGraphEditorStore, useViewerStore } from "@/stores";
 import type { EditorMode, PlaceableNodeType } from "@/stores/graph-editor-store";
 
 const NODE_TYPE_LABELS: Record<string, string> = {
-  WAYPOINT: "일반",
-  JUNCTION: "분기점",
-  POI: "POI",
-  PASSAGE_ENTRY: "통행 진입",
-  PASSAGE_EXIT: "통행 출구",
+  corridor: "복도",
+  junction: "교차",
+  endpoint: "끝점",
+  poi: "POI",
+  poi_attach: "POI 부착",
 };
 
 const EDGE_TYPE_LABELS: Record<string, string> = {
-  HORIZONTAL: "수평",
-  VERTICAL_STAIRCASE: "계단",
-  VERTICAL_ELEVATOR: "엘리베이터",
+  rtabmap_link: "자동",
+  poi_spur: "POI 가지",
+  vertical_connector: "수직",
 };
 
 export function GraphEditorControls() {
@@ -30,16 +30,16 @@ export function GraphEditorControls() {
   const selectedEdgeId = useGraphEditorStore((s) => s.selectedEdgeId);
   const edgeSourceNodeId = useGraphEditorStore((s) => s.edgeSourceNodeId);
   const deleteSelected = useGraphEditorStore((s) => s.deleteSelected);
-  const clearGraph = useGraphEditorStore((s) => s.clearGraph);
+  const clearManualGraph = useGraphEditorStore((s) => s.clearManualGraph);
   const setEdgeSource = useGraphEditorStore((s) => s.setEdgeSource);
-  const selectedFloorId = useViewerStore((s) => s.selectedFloorId);
+  const selectedAreaId = useViewerStore((s) => s.selectedAreaId);
   const nodeTypeToPlace = useGraphEditorStore((s) => s.nodeTypeToPlace);
   const setNodeTypeToPlace = useGraphEditorStore((s) => s.setNodeTypeToPlace);
   const autoConnect = useGraphEditorStore((s) => s.autoConnect);
   const setAutoConnect = useGraphEditorStore((s) => s.setAutoConnect);
 
-  const selectedNode = nodes.find((n) => n.id === selectedNodeId);
-  const selectedEdge = edges.find((e) => e.id === selectedEdgeId);
+  const selectedNode = nodes.find((n) => n.nodeId === selectedNodeId);
+  const selectedEdge = edges.find((e) => e.edgeId === selectedEdgeId);
 
   return (
     <div className="space-y-3">
@@ -83,17 +83,12 @@ export function GraphEditorControls() {
             onValueChange={(v) => {
               if (v) setNodeTypeToPlace(v as PlaceableNodeType);
             }}
-            className="w-full"
+            className="w-full flex-wrap"
           >
-            <ToggleGroupItem value="WAYPOINT" className="flex-1 text-xs">
-              일반
-            </ToggleGroupItem>
-            <ToggleGroupItem value="STAIRCASE" className="flex-1 text-xs">
-              계단
-            </ToggleGroupItem>
-            <ToggleGroupItem value="ELEVATOR" className="flex-1 text-xs">
-              E/V
-            </ToggleGroupItem>
+            <ToggleGroupItem value="corridor" className="flex-1 text-xs">복도</ToggleGroupItem>
+            <ToggleGroupItem value="junction" className="flex-1 text-xs">교차</ToggleGroupItem>
+            <ToggleGroupItem value="endpoint" className="flex-1 text-xs">끝점</ToggleGroupItem>
+            <ToggleGroupItem value="poi_attach" className="flex-1 text-xs">POI 부착</ToggleGroupItem>
           </ToggleGroup>
         </div>
       )}
@@ -116,7 +111,6 @@ export function GraphEditorControls() {
       <p className="text-[10px] text-muted-foreground">
         {editorMode === "add-node" && autoConnect && "클릭할 때마다 이전 노드와 자동 연결됩니다"}
         {editorMode === "add-node" && !autoConnect && "클릭하여 독립 노드를 배치합니다"}
-        {editorMode === "add-node" && (nodeTypeToPlace === "STAIRCASE" || nodeTypeToPlace === "ELEVATOR") && " (연결할 층 선택)"}
         {editorMode === "add-edge" &&
           (edgeSourceNodeId
             ? "도착 노드를 클릭하세요"
@@ -153,16 +147,19 @@ export function GraphEditorControls() {
           <div className="space-y-1 text-xs">
             <p className="font-medium">선택된 노드</p>
             <p className="text-muted-foreground">
-              타입: <span className="text-foreground">{NODE_TYPE_LABELS[selectedNode.type] ?? selectedNode.type}</span>
+              타입: <span className="text-foreground">{NODE_TYPE_LABELS[selectedNode.nodeType] ?? selectedNode.nodeType}</span>
             </p>
             <p className="text-muted-foreground font-mono">
               ({selectedNode.x.toFixed(2)}, {selectedNode.y.toFixed(2)}, {selectedNode.z.toFixed(2)})
             </p>
-            {selectedNode.poiName && (
+            {selectedNode.label && (
               <p className="text-muted-foreground">
-                POI: <span className="text-foreground">{selectedNode.poiName}</span>
+                라벨: <span className="text-foreground">{selectedNode.label}</span>
               </p>
             )}
+            <p className="text-muted-foreground">
+              출처: <span className="text-foreground">{selectedNode.origin === "manual_edit" ? "수동" : "스캔"}</span>
+            </p>
           </div>
         </>
       )}
@@ -173,27 +170,24 @@ export function GraphEditorControls() {
           <div className="space-y-1 text-xs">
             <p className="font-medium">선택된 엣지</p>
             <p className="text-muted-foreground">
-              거리: <span className="font-mono text-foreground">{selectedEdge.distance.toFixed(2)}m</span>
+              거리: <span className="font-mono text-foreground">{selectedEdge.lengthM.toFixed(2)}m</span>
             </p>
             <p className="text-muted-foreground">
               타입: <span className="text-foreground">{EDGE_TYPE_LABELS[selectedEdge.edgeType] ?? selectedEdge.edgeType}</span>
-            </p>
-            <p className="text-muted-foreground">
-              양방향: <span className="text-foreground">{selectedEdge.isBidirectional ? "예" : "아니오"}</span>
             </p>
           </div>
         </>
       )}
 
       {/* Actions */}
-      {(selectedNodeId || selectedEdgeId) && selectedFloorId && (
+      {(selectedNodeId || selectedEdgeId) && (
         <>
           <Separator />
           <Button
             variant="destructive"
             size="sm"
             className="w-full text-xs"
-            onClick={() => deleteSelected(selectedFloorId)}
+            onClick={() => deleteSelected()}
           >
             <Trash2 className="mr-1 h-3 w-3" />
             선택 항목 삭제 (Del)
@@ -202,19 +196,19 @@ export function GraphEditorControls() {
       )}
 
       <Separator />
-      {selectedFloorId && (
+      {selectedAreaId && (
         <Button
           variant="outline"
           size="sm"
           className="w-full text-xs text-destructive hover:text-destructive"
           onClick={() => {
-            if (window.confirm("이 층의 모든 노드와 엣지를 삭제하시겠습니까?")) {
-              clearGraph(selectedFloorId);
+            if (window.confirm("이 area의 수동 편집분(노드/엣지)을 모두 삭제하시겠습니까?")) {
+              clearManualGraph(selectedAreaId);
             }
           }}
         >
           <RotateCcw className="mr-1 h-3 w-3" />
-          그래프 초기화
+          수동 편집 초기화
         </Button>
       )}
 
@@ -224,11 +218,10 @@ export function GraphEditorControls() {
         <Label className="text-[10px] font-medium text-muted-foreground">단축키</Label>
         <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
           <span><kbd className="bg-muted px-1 rounded text-[9px]">1</kbd> 보기</span>
-          <span><kbd className="bg-muted px-1 rounded text-[9px]">2</kbd> 노드(일반)</span>
+          <span><kbd className="bg-muted px-1 rounded text-[9px]">2</kbd> 노드</span>
           <span><kbd className="bg-muted px-1 rounded text-[9px]">3</kbd> 엣지</span>
           <span><kbd className="bg-muted px-1 rounded text-[9px]">4</kbd> 선택</span>
-          <span><kbd className="bg-muted px-1 rounded text-[9px]">5</kbd> 계단</span>
-          <span><kbd className="bg-muted px-1 rounded text-[9px]">6</kbd> E/V</span>
+          <span><kbd className="bg-muted px-1 rounded text-[9px]">5</kbd> POI 배치</span>
           <span><kbd className="bg-muted px-1 rounded text-[9px]">Del</kbd> 삭제</span>
           <span><kbd className="bg-muted px-1 rounded text-[9px]">Esc</kbd> 취소</span>
         </div>

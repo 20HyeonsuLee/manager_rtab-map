@@ -5,7 +5,6 @@ import type {
   FloorPathResponse,
   FloorResponse,
   BuildingDetailResponse,
-  NodeImageResponse,
   AreaResponse,
 } from "@/types";
 
@@ -38,8 +37,6 @@ interface ViewerState {
   setViewMode: (mode: ViewMode) => void;
   showAllFloors: boolean;
   setShowAllFloors: (show: boolean) => void;
-  nearbyImages: NodeImageResponse[];
-  setNearbyImages: (images: NodeImageResponse[]) => void;
   orbitTarget: { x: number; y: number; z: number } | null;
   setOrbitTarget: (target: { x: number; y: number; z: number } | null) => void;
   loadFloorData: (floorId: string) => Promise<void>;
@@ -61,7 +58,6 @@ const initialState = {
   plyUrl: null as string | null,
   viewMode: "orbit" as ViewMode,
   showAllFloors: false,
-  nearbyImages: [] as NodeImageResponse[],
   orbitTarget: null as { x: number; y: number; z: number } | null,
 };
 
@@ -84,7 +80,6 @@ export const useViewerStore = create<ViewerState>((set) => ({
   setPlyUrl: (url) => set({ plyUrl: url }),
   setViewMode: (mode) => set({ viewMode: mode }),
   setShowAllFloors: (show) => set({ showAllFloors: show }),
-  setNearbyImages: (images) => set({ nearbyImages: images }),
   setOrbitTarget: (target) => set({ orbitTarget: target }),
 
   loadFloorData: async (floorId) => {

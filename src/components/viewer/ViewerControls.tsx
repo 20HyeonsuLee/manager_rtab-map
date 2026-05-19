@@ -34,8 +34,7 @@ export function ViewerControls({ isFullscreen = false, onToggleFullscreen, varia
   const isEditorActive = useGraphEditorStore((s) => s.isEditorActive);
   const setEditorActive = useGraphEditorStore((s) => s.setEditorActive);
 
-  const selectedFloor = building?.floors.find((f) => f.id === selectedFloorId);
-  const visiblePois = pois.filter((poi) => poi.floorLevel === selectedFloor?.level);
+  const visiblePois = pois.filter((poi) => poi.floorId === selectedFloorId);
 
   const controls = (
     <div className="space-y-4">

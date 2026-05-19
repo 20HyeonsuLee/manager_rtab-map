@@ -14,6 +14,15 @@ import {
 import { updateNode } from "@/api/graph";
 import { useViewerStore, usePoiStore, useGraphEditorStore } from "@/stores";
 import { FloorSelector } from "./FloorSelector";
+import { AreaSelector } from "./AreaSelector";
+import type { NodeType } from "@/types";
+
+const PLACEABLE_TYPES: { value: NodeType; label: string }[] = [
+  { value: "corridor", label: "복도" },
+  { value: "junction", label: "교차" },
+  { value: "endpoint", label: "끝점" },
+  { value: "poi_attach", label: "POI 부착" },
+];
 
 export function ViewerToolbar() {
   const viewMode = useViewerStore((s) => s.viewMode);
@@ -21,6 +30,7 @@ export function ViewerToolbar() {
   const pointSize = useViewerStore((s) => s.pointSize);
   const setPointSize = useViewerStore((s) => s.setPointSize);
   const selectedFloorId = useViewerStore((s) => s.selectedFloorId);
+  const selectedAreaId = useViewerStore((s) => s.selectedAreaId);
 
   const isPlacementMode = usePoiStore((s) => s.isPlacementMode);
   const setPlacementMode = usePoiStore((s) => s.setPlacementMode);
@@ -34,36 +44,26 @@ export function ViewerToolbar() {
   const selectedEdgeId = useGraphEditorStore((s) => s.selectedEdgeId);
   const edgeSourceNodeId = useGraphEditorStore((s) => s.edgeSourceNodeId);
   const deleteSelected = useGraphEditorStore((s) => s.deleteSelected);
-  const clearGraph = useGraphEditorStore((s) => s.clearGraph);
+  const clearManualGraph = useGraphEditorStore((s) => s.clearManualGraph);
   const setEdgeSource = useGraphEditorStore((s) => s.setEdgeSource);
 
   const longPressNodeId = useGraphEditorStore((s) => s.longPressNodeId);
   const setLongPressNodeId = useGraphEditorStore((s) => s.setLongPressNodeId);
-  const pendingPassageLink = useGraphEditorStore((s) => s.pendingPassageLink);
-  const setPendingPassageLink = useGraphEditorStore((s) => s.setPendingPassageLink);
   const nodes = useGraphEditorStore((s) => s.nodes);
   const fetchGraph = useGraphEditorStore((s) => s.fetchGraph);
 
   const [helpOpen, setHelpOpen] = useState(false);
   const hasSelection = !!(selectedNodeId || selectedEdgeId);
-  const longPressNode = nodes.find((n) => n.id === longPressNodeId);
-  const isPassageType = longPressNode?.type === "PASSAGE_ENTRY" || longPressNode?.type === "PASSAGE_EXIT";
+  const longPressNode = nodes.find((n) => n.nodeId === longPressNodeId);
 
-  async function handleToWaypoint() {
+  async function handleChangeType(newType: NodeType) {
     if (!longPressNodeId || !selectedFloorId) return;
     try {
-      await updateNode(longPressNodeId, { type: "WAYPOINT" });
-      await fetchGraph(selectedFloorId);
-      toast.success("일반 노드로 변경되었습니다.");
+      await updateNode(longPressNodeId, { nodeType: newType });
+      await fetchGraph(selectedFloorId, selectedAreaId ?? undefined);
+      toast.success("노드 타입이 변경되었습니다.");
     } catch { /* interceptor */ }
     setLongPressNodeId(null);
-  }
-
-  function handleStartPassageLink() {
-    if (!longPressNodeId || !selectedFloorId) return;
-    setPendingPassageLink({ nodeId: longPressNodeId, floorId: selectedFloorId });
-    setLongPressNodeId(null);
-    toast("다른 층으로 이동 후 연결할 노드를 탭하세요.");
   }
 
   return (
@@ -72,6 +72,9 @@ export function ViewerToolbar() {
       <div className="absolute top-2 left-2 right-2 z-10 flex items-center gap-1.5 pointer-events-none">
         <div className="w-[120px] sm:w-[160px] pointer-events-auto">
           <FloorSelector />
+        </div>
+        <div className="w-[120px] sm:w-[160px] pointer-events-auto">
+          <AreaSelector />
         </div>
         <div className="flex-1" />
         <div className="flex bg-background/90 backdrop-blur rounded-md border shadow-sm pointer-events-auto">
@@ -152,6 +155,7 @@ export function ViewerToolbar() {
                 "노드나 엣지를 탭하면 선택됩니다.",
                 "선택된 노드는 드래그하여 위치를 이동할 수 있습니다.",
                 "WASD 또는 방향키로 카메라를 이동합니다.",
+                "노드 길게 누르면 타입(복도/교차/끝점/POI부착)을 바꿀 수 있습니다.",
               ]}
             />
             <HelpSection
@@ -170,7 +174,7 @@ export function ViewerToolbar() {
               items={[
                 "시작 노드를 탭한 후, 도착 노드를 탭하면 두 노드가 연결됩니다.",
                 "Esc를 누르면 연결을 취소합니다.",
-                "엣지는 사용자가 이동할 수 있는 경로를 나타냅니다.",
+                "수직 연결(계단/엘리베이터)은 상단의 '수직연결' 탭에서 관리합니다.",
               ]}
             />
             <HelpSection
@@ -184,11 +188,11 @@ export function ViewerToolbar() {
             />
             <HelpSection
               icon={<Trash2 className="h-4 w-4" />}
-              title="삭제"
+              title="삭제 / 초기화"
               items={[
                 "보기 모드에서 노드나 엣지를 탭하여 선택합니다.",
                 "화면 하단에 나타나는 삭제 버튼을 탭합니다.",
-                "우하단 '초기화' 버튼으로 해당 층의 모든 노드와 엣지를 삭제할 수 있습니다.",
+                "우하단 '수동 편집 초기화' 버튼으로 사용자가 추가한 노드/엣지만 일괄 삭제할 수 있습니다.",
               ]}
             />
           </div>
@@ -196,9 +200,9 @@ export function ViewerToolbar() {
       </Dialog>
 
       {/* Selection delete */}
-      {hasSelection && selectedFloorId && (
+      {hasSelection && (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10">
-          <Button variant="destructive" size="sm" className="shadow-lg text-xs h-9 gap-1.5 px-4" onClick={() => deleteSelected(selectedFloorId)}>
+          <Button variant="destructive" size="sm" className="shadow-lg text-xs h-9 gap-1.5 px-4" onClick={() => deleteSelected()}>
             <Trash2 className="h-3.5 w-3.5" />
             선택 항목 삭제
           </Button>
@@ -214,28 +218,16 @@ export function ViewerToolbar() {
         </div>
       )}
 
-      {/* Clear graph */}
-      {selectedFloorId && (
+      {/* Clear manual graph */}
+      {selectedAreaId && (
         <div className="absolute bottom-2 right-2 z-10">
           <Button
             variant="ghost" size="sm"
             className="h-7 text-[10px] text-muted-foreground hover:text-destructive"
-            onClick={() => { if (window.confirm("이 층의 모든 노드와 엣지를 삭제하시겠습니까?")) clearGraph(selectedFloorId); }}
+            onClick={() => { if (window.confirm("이 area의 수동 편집분을 모두 삭제하시겠습니까?")) clearManualGraph(selectedAreaId); }}
           >
-            <RotateCcw className="h-3 w-3 mr-1" />초기화
+            <RotateCcw className="h-3 w-3 mr-1" />수동 편집 초기화
           </Button>
-        </div>
-      )}
-
-      {/* Pending passage link hint */}
-      {pendingPassageLink && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10">
-          <div className="flex items-center gap-2 bg-amber-500/90 text-white rounded-md px-3 py-1.5 shadow-lg">
-            <span className="text-xs font-medium">다른 층에서 연결할 노드를 탭하세요</span>
-            <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-white hover:text-white hover:bg-white/20" onClick={() => setPendingPassageLink(null)}>
-              취소
-            </Button>
-          </div>
         </div>
       )}
 
@@ -243,21 +235,27 @@ export function ViewerToolbar() {
       <Dialog open={!!longPressNodeId} onOpenChange={(open) => { if (!open) setLongPressNodeId(null); }}>
         <DialogContent className="sm:max-w-[280px]">
           <DialogHeader>
-            <DialogTitle className="text-sm">노드 설정</DialogTitle>
+            <DialogTitle className="text-sm">노드 타입 변경</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              현재: <span className="font-medium text-foreground">{isPassageType ? "통로" : "일반"}</span>
+              현재: <span className="font-medium text-foreground">
+                {longPressNode ? (PLACEABLE_TYPES.find((t) => t.value === longPressNode.nodeType)?.label ?? longPressNode.nodeType) : "-"}
+              </span>
             </p>
-            {isPassageType ? (
-              <Button variant="outline" size="sm" className="w-full text-xs" onClick={handleToWaypoint}>
-                일반 노드로 변경
-              </Button>
-            ) : (
-              <Button size="sm" className="w-full text-xs" onClick={handleStartPassageLink}>
-                통로 연결 시작
-              </Button>
-            )}
+            <div className="grid grid-cols-2 gap-1.5">
+              {PLACEABLE_TYPES.map((t) => (
+                <Button
+                  key={t.value}
+                  variant={longPressNode?.nodeType === t.value ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => handleChangeType(t.value)}
+                >
+                  {t.label}
+                </Button>
+              ))}
+            </div>
             <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setLongPressNodeId(null)}>
               취소
             </Button>
