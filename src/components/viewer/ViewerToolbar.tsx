@@ -59,18 +59,16 @@ export function ViewerToolbar() {
   const updateEdge = useGraphEditorStore((s) => s.updateEdge);
   const fetchGraph = useGraphEditorStore((s) => s.fetchGraph);
 
+  const nodeTypeToPlace = useGraphEditorStore((s) => s.nodeTypeToPlace);
+  const setNodeTypeToPlace = useGraphEditorStore((s) => s.setNodeTypeToPlace);
   const draftVertices = usePolygonStore((s) => s.draftVertices);
   const commitDraftAsCorner = usePolygonStore((s) => s.commitDraftAsCorner);
   const clearDraft = usePolygonStore((s) => s.clearDraft);
   const popDraftVertex = usePolygonStore((s) => s.popDraftVertex);
-  const activeConnectorId = useConnectorStore((s) => s.activeConnectorId);
-  const activeConnectorType = useConnectorStore((s) => s.activeConnectorType);
-  const activeConnector = useConnectorStore((s) =>
-    s.connectors.find((c) => c.connectorId === s.activeConnectorId),
-  );
-  const finishActiveConnector = useConnectorStore((s) => s.finishActiveConnector);
-  const selectedBuildingId = useBuildingStore((s) => s.currentBuilding?.buildingId ?? null);
-  const [connectorDialogOpen, setConnectorDialogOpen] = useState(false);
+  const verticalType = useConnectorStore((s) => s.verticalType);
+  const verticalKey = useConnectorStore((s) => s.verticalKey);
+  const setVerticalType = useConnectorStore((s) => s.setVerticalType);
+  const setVerticalKey = useConnectorStore((s) => s.setVerticalKey);
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [widthInput, setWidthInput] = useState("");
@@ -166,9 +164,6 @@ export function ViewerToolbar() {
             <ToolIcon active={editorMode === "add-corner"} onClick={() => setEditorMode("add-corner")} aria-label="코너">
               <Square className="h-4 w-4" />
             </ToolIcon>
-            <ToolIcon active={editorMode === "add-vertical-stop"} onClick={() => setEditorMode("add-vertical-stop")} aria-label="층간이동">
-              <MoveVertical className="h-4 w-4" />
-            </ToolIcon>
           </div>
 
           {/* Auto-connect — same width as toolbar, icon toggle */}
@@ -176,6 +171,31 @@ export function ViewerToolbar() {
             <ToolIcon active={autoConnect} onClick={() => setAutoConnect(!autoConnect)} aria-label="자동 연결">
               <Link className="h-4 w-4" />
             </ToolIcon>
+          )}
+
+          {/* nodeType selector — add-node 모드에서만 표시 */}
+          {editorMode === "add-node" && (
+            <div className="flex flex-col bg-background/90 backdrop-blur rounded-md border shadow-sm mt-2 text-[10px]">
+              {(["corridor", "junction", "endpoint", "poi_attach", "vertical"] as const).map((nt) => (
+                <button
+                  key={nt}
+                  className={`w-9 h-7 transition-colors rounded-sm ${
+                    nodeTypeToPlace === nt
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent text-muted-foreground"
+                  }`}
+                  onClick={() => setNodeTypeToPlace(nt)}
+                  aria-label={nt}
+                  title={nt}
+                >
+                  {nt === "corridor" && "복도"}
+                  {nt === "junction" && "교차"}
+                  {nt === "endpoint" && "끝점"}
+                  {nt === "poi_attach" && "POI"}
+                  {nt === "vertical" && "↕"}
+                </button>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -279,40 +299,28 @@ export function ViewerToolbar() {
         </div>
       )}
 
-      {/* Vertical connector hint (add-vertical-stop mode) */}
-      {editorMode === "add-vertical-stop" && (
+      {/* nodeType=vertical 일 때 type+key 입력 (add-node 모드에서만) */}
+      {editorMode === "add-node" && nodeTypeToPlace === "vertical" && (
         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-background/90 backdrop-blur border rounded-md shadow-lg px-3 py-1.5">
-          {activeConnector ? (
-            <>
-              <span className="text-xs text-muted-foreground">
-                {activeConnectorType} <span className="font-mono font-medium text-foreground">{activeConnector.connectorKey}</span>
-                · stops <span className="font-mono font-medium text-foreground">{activeConnector.stops.length}</span>
-              </span>
-              <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={finishActiveConnector}>
-                <Check className="h-3 w-3" /> 완료
-              </Button>
-            </>
-          ) : (
-            <>
-              <span className="text-xs text-muted-foreground">connector를 먼저 생성</span>
-              <Button
-                size="sm" variant="default" className="h-7 text-xs gap-1"
-                onClick={() => setConnectorDialogOpen(true)}
-                disabled={!selectedBuildingId}
-              >
-                <Plus className="h-3 w-3" /> 새 connector
-              </Button>
-            </>
-          )}
+          <span className="text-xs text-muted-foreground">type</span>
+          <select
+            className="h-7 text-xs bg-background border rounded px-1"
+            value={verticalType}
+            onChange={(e) => setVerticalType(e.target.value)}
+          >
+            <option value="STAIRCASE">계단</option>
+            <option value="ELEVATOR">엘리베이터</option>
+            <option value="ESCALATOR">에스컬레이터</option>
+          </select>
+          <span className="text-xs text-muted-foreground">key</span>
+          <Input
+            className="h-7 w-28 text-xs"
+            value={verticalKey}
+            onChange={(e) => setVerticalKey(e.target.value)}
+            placeholder="stair-A"
+          />
+          <span className="text-[10px] text-muted-foreground">같은 key면 자동 묶임</span>
         </div>
-      )}
-
-      {selectedBuildingId && (
-        <NewConnectorDialog
-          open={connectorDialogOpen}
-          onOpenChange={setConnectorDialogOpen}
-          buildingId={selectedBuildingId}
-        />
       )}
 
       {/* Edge hint */}

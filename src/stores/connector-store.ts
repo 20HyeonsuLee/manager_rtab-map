@@ -15,8 +15,17 @@ interface ConnectorStore {
   buildingId: string | null;
   selectedConnectorId: string | null;
 
-  // add-vertical-stop 모드에서 사용 — 사용자가 모달로 connector 만들면 그 ID를 active로
-  // 보관해 각 floor 클릭 시 같은 connector에 stop을 attach.
+  // 노드 모드의 nodeType=vertical에서 사용. 사용자가 type+key를 입력하면 그 값으로
+  // 노드 찍을 때마다 connector를 upsert(없으면 생성)하고 stop을 add.
+  verticalType: string;        // STAIRCASE | ELEVATOR | ESCALATOR
+  verticalKey: string;          // 예: "stair-A". 같은 (type, key)면 같은 connector로 매핑
+  setVerticalType: (t: string) => void;
+  setVerticalKey: (k: string) => void;
+
+  /** key가 같은 connector를 찾아 그 ID 반환. 없으면 새로 생성 후 반환. */
+  ensureConnector: (buildingId: string, type: string, key: string) => Promise<string>;
+
+  // Legacy 호환 (NewConnectorDialog 등) — 단순화 후 미사용이지만 컴파일 깨지지 않게 유지.
   activeConnectorId: string | null;
   activeConnectorType: string | null;
 
@@ -41,6 +50,8 @@ const initialState = {
   isLoading: false,
   buildingId: null as string | null,
   selectedConnectorId: null as string | null,
+  verticalType: "STAIRCASE",
+  verticalKey: "",
   activeConnectorId: null as string | null,
   activeConnectorType: null as string | null,
 };
@@ -118,6 +129,24 @@ export const useConnectorStore = create<ConnectorStore>((set, get) => ({
   },
 
   selectConnector: (connectorId) => set({ selectedConnectorId: connectorId }),
+
+  setVerticalType: (t) => set({ verticalType: t }),
+  setVerticalKey: (k) => set({ verticalKey: k }),
+
+  ensureConnector: async (buildingId, type, key) => {
+    // 메모리 캐시에서 우선 매칭. 없으면 list refresh 후 재시도 → 그래도 없으면 신규.
+    const matchKey = (c: ConnectorResponse) => c.connectorType === type && c.connectorKey === key;
+    let hit = get().connectors.find(matchKey);
+    if (!hit) {
+      const list = await api.listConnectors(buildingId);
+      set({ connectors: list });
+      hit = list.find(matchKey);
+    }
+    if (hit) return hit.connectorId;
+    const created = await api.createConnector(buildingId, { connectorType: type, connectorKey: key });
+    set({ connectors: [...get().connectors, created] });
+    return created.connectorId;
+  },
 
   startNewConnector: async (buildingId, body) => {
     const created = await api.createConnector(buildingId, body);

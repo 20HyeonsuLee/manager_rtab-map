@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import type { ThreeEvent } from "@react-three/fiber";
 import { toast } from "sonner";
-import { useGraphEditorStore, useViewerStore, usePoiStore, usePolygonStore, useConnectorStore } from "@/stores";
+import { useGraphEditorStore, useViewerStore, usePoiStore, usePolygonStore, useConnectorStore, useBuildingStore } from "@/stores";
 import { threeToApi } from "@/lib/utils";
 import * as graphApi from "@/api/graph";
 import { setFloorY } from "./PointCloudViewer";
@@ -219,35 +219,6 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
       return;
     }
 
-    // 층간이동 stop (add-vertical-stop): active connector에 stop attach. 가까운 노드면 그 노드,
-    // 빈 공간이면 새 corridor 노드 만든 후 그 노드 ID로 attach.
-    if (editorMode === "add-vertical-stop") {
-      if (!selectedAreaId) { toast.error("Area를 먼저 선택하세요."); return; }
-      const { nodes } = useGraphEditorStore.getState();
-      const connectorStore = useConnectorStore.getState();
-      if (!connectorStore.activeConnectorId) { toast.error("active connector 없음 — 모달로 먼저 생성"); return; }
-      let routeNodeId: string | undefined;
-      let nearest: PathNodeResponse | null = null;
-      let nearestDist = Infinity;
-      for (const n of nodes) {
-        const d = Math.hypot(n.x - apiCoords.x, n.y - apiCoords.y);
-        if (d < nearestDist) { nearestDist = d; nearest = n; }
-      }
-      try {
-        if (nearest && nearestDist < 0.5) {
-          routeNodeId = nearest.nodeId;
-        } else {
-          const newNode = await graphApi.createNode(selectedAreaId, {
-            x: apiCoords.x, y: apiCoords.y, z: apiCoords.z, nodeType: "corridor",
-          });
-          useGraphEditorStore.setState({ nodes: [...nodes, newNode] });
-          routeNodeId = newNode.nodeId;
-        }
-        await connectorStore.addStop(connectorStore.activeConnectorId, { areaId: selectedAreaId, routeNodeId });
-      } catch { toast.error("stop 추가 실패"); }
-      return;
-    }
-
     // 노드 배치
     if (editorMode !== "add-node" || !selectedAreaId) {
       if (editorMode === "add-node" && !selectedAreaId) {
@@ -278,6 +249,27 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
       } catch { toast.error("엣지 분할 실패"); return; }
     }
 
+    // vertical: corridor 노드로 생성한 뒤 같은 (type, key)의 connector에 stop attach.
+    // 다른 floor에서 같은 key로 또 찍으면 connector가 이미 있어 stop만 추가 → 서버
+    // BuildingRouteGraphProvider가 같은 connector_id stops 페어 사이에 가상 edge 자동 생성.
+    if (nodeTypeToPlace === "vertical") {
+      const connectorStore = useConnectorStore.getState();
+      const { verticalType, verticalKey } = connectorStore;
+      if (!verticalKey.trim()) { toast.error("key를 먼저 입력하세요"); return; }
+      const buildingId = useBuildingStore.getState().currentBuilding?.buildingId;
+      if (!buildingId) { toast.error("빌딩 정보 없음"); return; }
+      try {
+        const newNode = await graphApi.createNode(selectedAreaId, {
+          x: apiCoords.x, y: apiCoords.y, z: apiCoords.z, nodeType: "corridor",
+          label: `${verticalType}:${verticalKey}`,
+        });
+        useGraphEditorStore.setState({ nodes: [...nodes, newNode], lastPlacedNodeId: newNode.nodeId });
+        const connectorId = await connectorStore.ensureConnector(buildingId, verticalType, verticalKey.trim());
+        await connectorStore.addStop(connectorId, { areaId: selectedAreaId, routeNodeId: newNode.nodeId });
+      } catch { toast.error("층간연결 노드 추가 실패"); }
+      return;
+    }
+
     createNode(selectedAreaId, apiCoords.x, apiCoords.y, apiCoords.z, nodeTypeToPlace);
   }
 
@@ -286,7 +278,6 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
   const showClickPlane =
     editorMode === "add-node" ||
     editorMode === "add-corner" ||
-    editorMode === "add-vertical-stop" ||
     isPlacementMode;
 
   return (

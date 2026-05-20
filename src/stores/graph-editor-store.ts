@@ -4,8 +4,10 @@ import * as api from "@/api";
 import { useViewerStore } from "./viewer-store";
 import type { PathNodeResponse, PathEdgeResponse, NodeType, EdgeType, EdgeUpdateRequest } from "@/types";
 
-export type EditorMode = "view" | "add-node" | "add-edge" | "select" | "add-corner" | "add-vertical-stop";
-export type PlaceableNodeType = "corridor" | "junction" | "endpoint" | "poi_attach";
+export type EditorMode = "view" | "add-node" | "add-edge" | "select" | "add-corner";
+// vertical은 가상 nodeType — UI에서 type/key 입력 받아 connector + stop 자동 등록.
+// 실제 DB nodeType은 corridor로 저장하고 vertical_connector_stop이 그 노드를 가리킨다.
+export type PlaceableNodeType = "corridor" | "junction" | "endpoint" | "poi_attach" | "vertical";
 
 interface GraphEditorState {
   nodes: PathNodeResponse[];

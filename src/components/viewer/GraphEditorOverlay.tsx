@@ -15,6 +15,21 @@ const NODE_COLORS: Record<string, string> = {
   poi_attach: "#4ade80",
 };
 
+// 층간연결 노드는 label이 "TYPE:KEY" prefix로 식별. type별 색상.
+const VERTICAL_COLORS: Record<string, string> = {
+  STAIRCASE: "#a78bfa",   // 보라 — 계단
+  ELEVATOR: "#fb923c",    // 주황 — 엘리베이터
+  ESCALATOR: "#f472b6",   // 핑크 — 에스컬레이터
+};
+
+function verticalColorOf(label: string | null | undefined): string | null {
+  if (!label) return null;
+  const colonIdx = label.indexOf(":");
+  if (colonIdx <= 0) return null;
+  const type = label.slice(0, colonIdx).toUpperCase();
+  return VERTICAL_COLORS[type] ?? null;
+}
+
 const EDGE_COLORS: Record<string, string> = {
   rtabmap_link: "#22d3ee",
   poi_spur: "#3b82f6",
@@ -279,11 +294,12 @@ export function GraphEditorOverlay() {
 
         const isSelected = node.nodeId === selectedNodeId;
         const isEdgeSource = node.nodeId === edgeSourceNodeId;
+        const verticalColor = verticalColorOf(node.label);
         const color = isSelected
           ? "#ffffff"
           : isEdgeSource
             ? "#fbbf24"
-            : NODE_COLORS[node.nodeType] ?? "#22d3ee";
+            : verticalColor ?? NODE_COLORS[node.nodeType] ?? "#22d3ee";
 
         const radius = isSelected || isEdgeSource
           ? 0.45

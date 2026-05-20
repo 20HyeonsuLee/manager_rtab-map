@@ -283,17 +283,29 @@ function selectMode(slotId: string) {
   const poi = usePoiStore.getState();
   switch (slotId) {
     case "view": store.setEditorMode("view"); poi.setPlacementMode(false); break;
-    case "node": store.setEditorMode("add-node"); poi.setPlacementMode(false); break;
+    case "node":
+      store.setEditorMode("add-node");
+      // 이전에 vertical을 선택했다면 일반 노드 모드(corridor)로 복귀해야 사용자가 2번 눌렀을 때
+      // 기대대로 동작. vertical은 7번 단축키에서만 명시적으로 활성.
+      if (store.nodeTypeToPlace === "vertical") store.setNodeTypeToPlace("corridor");
+      poi.setPlacementMode(false);
+      break;
     case "edge": store.setEditorMode("add-edge"); poi.setPlacementMode(false); break;
     case "select": store.setEditorMode("select"); poi.setPlacementMode(false); break;
     case "poi": store.setEditorMode("view"); poi.setPlacementMode(true); break;
     case "corner": store.setEditorMode("add-corner"); poi.setPlacementMode(false); break;
-    case "vertical": store.setEditorMode("add-vertical-stop"); poi.setPlacementMode(false); break;
+    // 단축키 7 = 노드 모드 + nodeType=vertical (별도 모드 아님)
+    case "vertical":
+      store.setEditorMode("add-node");
+      store.setNodeTypeToPlace("vertical");
+      poi.setPlacementMode(false);
+      break;
   }
 }
 
 function ModeBar({ isFps }: { isFps: boolean }) {
   const editorMode = useGraphEditorStore((s) => s.editorMode);
+  const nodeTypeToPlace = useGraphEditorStore((s) => s.nodeTypeToPlace);
   const isPlacementMode = usePoiStore((s) => s.isPlacementMode);
   const autoConnect = useGraphEditorStore((s) => s.autoConnect);
   const floors = useViewerStore((s) => s.floors);
@@ -303,6 +315,8 @@ function ModeBar({ isFps }: { isFps: boolean }) {
 
   let activeId = "view";
   if (isPlacementMode) activeId = "poi";
+  else if (editorMode === "add-corner") activeId = "corner";
+  else if (editorMode === "add-node" && nodeTypeToPlace === "vertical") activeId = "vertical";
   else if (editorMode === "add-node") activeId = "node";
   else if (editorMode === "add-edge") activeId = "edge";
   else if (editorMode === "select") activeId = "select";
@@ -374,10 +388,19 @@ export function PointCloudViewer() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+        // Esc면 input에서 blur 시켜 단축키 다시 활성 (사용자가 key input에 갇히지
+        // 않도록). 그 외는 char 입력 보존을 위해 skip.
+        if (e.code === "Escape") {
+          (e.target as HTMLElement).blur();
+          e.preventDefault();
+        }
+        return;
+      }
 
       const modeMap: Record<string, string> = {
         Digit1: "view", Digit2: "node", Digit3: "edge", Digit4: "select", Digit5: "poi",
+        Digit6: "corner", Digit7: "vertical",
       };
       if (modeMap[e.code]) { e.preventDefault(); selectMode(modeMap[e.code]); return; }
 
