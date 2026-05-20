@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Orbit, Scan, Settings2,
   Hand, Plus, GitBranch, Trash2, RotateCcw, MapPin, X, HelpCircle, Link,
-  Square, MoveVertical, Check,
+  Square, Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { updateNode } from "@/api/graph";
-import { useViewerStore, usePoiStore, useGraphEditorStore, useBuildingStore, usePolygonStore, useConnectorStore } from "@/stores";
+import { useViewerStore, usePoiStore, useGraphEditorStore, usePolygonStore, useConnectorStore } from "@/stores";
 import { FloorSelector } from "./FloorSelector";
 import { AreaSelector } from "./AreaSelector";
-import { NewConnectorDialog } from "./NewConnectorDialog";
 import type { NodeType } from "@/types";
 
 const PLACEABLE_TYPES: { value: NodeType; label: string }[] = [

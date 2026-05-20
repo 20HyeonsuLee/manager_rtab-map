@@ -230,7 +230,7 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
     const { nodes, edges, autoConnect, lastPlacedNodeId } = useGraphEditorStore.getState();
     const edgeHit = findNearestEdge(apiCoords.x, apiCoords.y, nodes, edges);
 
-    if (edgeHit) {
+    if (edgeHit && nodeTypeToPlace !== "vertical") {
       try {
         const newNode = await graphApi.createNode(selectedAreaId, {
           x: edgeHit.projectedX, y: edgeHit.projectedY, z: apiCoords.z, nodeType: nodeTypeToPlace,

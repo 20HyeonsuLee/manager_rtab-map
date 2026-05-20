@@ -80,7 +80,7 @@ function FPSCameraController() {
   const events = useThree((s) => s.events);
   useEffect(() => {
     const original = events.compute;
-    events.compute = (event: any, root: any) => {
+    events.compute = (event, root) => {
       if (document.pointerLockElement) {
         root.pointer.set(0, 0);
         root.raycaster.setFromCamera(root.pointer, root.camera);
@@ -443,7 +443,8 @@ export function PointCloudViewer() {
           if (isNodeMode) {
             if (_fpsCameraPos) {
               const api = threeToApi(_fpsCameraPos.x, _floorY, _fpsCameraPos.z);
-              gs.createNode(areaId, api.x, api.y, api.z, gs.nodeTypeToPlace);
+              const nodeType = gs.nodeTypeToPlace === "vertical" ? "corridor" : gs.nodeTypeToPlace;
+              gs.createNode(areaId, api.x, api.y, api.z, nodeType);
             }
           } else if (isPoiMode) {
             if (_fpsCameraPos && gs.nodes.length > 0) {
