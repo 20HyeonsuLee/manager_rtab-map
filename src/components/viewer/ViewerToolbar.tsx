@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Orbit, Scan, Settings2,
   Hand, Plus, GitBranch, Trash2, RotateCcw, MapPin, X, HelpCircle, Link,
+  Square, MoveVertical, Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,9 +14,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { updateNode } from "@/api/graph";
-import { useViewerStore, usePoiStore, useGraphEditorStore } from "@/stores";
+import { useViewerStore, usePoiStore, useGraphEditorStore, useBuildingStore, usePolygonStore, useConnectorStore } from "@/stores";
 import { FloorSelector } from "./FloorSelector";
 import { AreaSelector } from "./AreaSelector";
+import { NewConnectorDialog } from "./NewConnectorDialog";
 import type { NodeType } from "@/types";
 
 const PLACEABLE_TYPES: { value: NodeType; label: string }[] = [
@@ -56,6 +58,19 @@ export function ViewerToolbar() {
   const edges = useGraphEditorStore((s) => s.edges);
   const updateEdge = useGraphEditorStore((s) => s.updateEdge);
   const fetchGraph = useGraphEditorStore((s) => s.fetchGraph);
+
+  const draftVertices = usePolygonStore((s) => s.draftVertices);
+  const commitDraftAsCorner = usePolygonStore((s) => s.commitDraftAsCorner);
+  const clearDraft = usePolygonStore((s) => s.clearDraft);
+  const popDraftVertex = usePolygonStore((s) => s.popDraftVertex);
+  const activeConnectorId = useConnectorStore((s) => s.activeConnectorId);
+  const activeConnectorType = useConnectorStore((s) => s.activeConnectorType);
+  const activeConnector = useConnectorStore((s) =>
+    s.connectors.find((c) => c.connectorId === s.activeConnectorId),
+  );
+  const finishActiveConnector = useConnectorStore((s) => s.finishActiveConnector);
+  const selectedBuildingId = useBuildingStore((s) => s.currentBuilding?.buildingId ?? null);
+  const [connectorDialogOpen, setConnectorDialogOpen] = useState(false);
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [widthInput, setWidthInput] = useState("");
@@ -148,6 +163,12 @@ export function ViewerToolbar() {
             <ToolIcon active={isPlacementMode} onClick={() => isPlacementMode ? cancelPlacement() : setPlacementMode(true)} aria-label="POI 배치">
               {isPlacementMode ? <X className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
             </ToolIcon>
+            <ToolIcon active={editorMode === "add-corner"} onClick={() => setEditorMode("add-corner")} aria-label="코너">
+              <Square className="h-4 w-4" />
+            </ToolIcon>
+            <ToolIcon active={editorMode === "add-vertical-stop"} onClick={() => setEditorMode("add-vertical-stop")} aria-label="층간이동">
+              <MoveVertical className="h-4 w-4" />
+            </ToolIcon>
           </div>
 
           {/* Auto-connect — same width as toolbar, icon toggle */}
@@ -236,6 +257,62 @@ export function ViewerToolbar() {
             선택 항목 삭제
           </Button>
         </div>
+      )}
+
+      {/* Corner draft hint (add-corner mode) */}
+      {editorMode === "add-corner" && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-background/90 backdrop-blur border rounded-md shadow-lg px-3 py-1.5">
+          <span className="text-xs text-muted-foreground">
+            코너 vertex: <span className="font-mono font-medium text-foreground">{draftVertices.length}</span>
+          </span>
+          <Button
+            size="sm" variant="default" className="h-7 text-xs gap-1"
+            disabled={draftVertices.length < 3 || !selectedAreaId}
+            onClick={() => selectedAreaId && commitDraftAsCorner(selectedAreaId)}
+          >
+            <Check className="h-3 w-3" /> 닫기
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={popDraftVertex} disabled={draftVertices.length === 0}>↶</Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={clearDraft} disabled={draftVertices.length === 0}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
+
+      {/* Vertical connector hint (add-vertical-stop mode) */}
+      {editorMode === "add-vertical-stop" && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-background/90 backdrop-blur border rounded-md shadow-lg px-3 py-1.5">
+          {activeConnector ? (
+            <>
+              <span className="text-xs text-muted-foreground">
+                {activeConnectorType} <span className="font-mono font-medium text-foreground">{activeConnector.connectorKey}</span>
+                · stops <span className="font-mono font-medium text-foreground">{activeConnector.stops.length}</span>
+              </span>
+              <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={finishActiveConnector}>
+                <Check className="h-3 w-3" /> 완료
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground">connector를 먼저 생성</span>
+              <Button
+                size="sm" variant="default" className="h-7 text-xs gap-1"
+                onClick={() => setConnectorDialogOpen(true)}
+                disabled={!selectedBuildingId}
+              >
+                <Plus className="h-3 w-3" /> 새 connector
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {selectedBuildingId && (
+        <NewConnectorDialog
+          open={connectorDialogOpen}
+          onOpenChange={setConnectorDialogOpen}
+          buildingId={selectedBuildingId}
+        />
       )}
 
       {/* Edge hint */}

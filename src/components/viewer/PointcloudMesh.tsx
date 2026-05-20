@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import type { ThreeEvent } from "@react-three/fiber";
 import { toast } from "sonner";
-import { useGraphEditorStore, useViewerStore, usePoiStore } from "@/stores";
+import { useGraphEditorStore, useViewerStore, usePoiStore, usePolygonStore, useConnectorStore } from "@/stores";
 import { threeToApi } from "@/lib/utils";
 import * as graphApi from "@/api/graph";
 import { setFloorY } from "./PointCloudViewer";
@@ -71,17 +71,21 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
     loader.load(
       plyUrl,
       (geo) => {
-        const positions = geo.getAttribute("position");
-        if (positions) {
-          const array = positions.array as Float32Array;
-          for (let i = 0; i < array.length; i += 3) {
-            array[i] = -array[i]; // X축 반전
-            const apiY = array[i + 1];
-            const apiZ = array[i + 2];
-            array[i + 1] = apiZ; // Three.js Y = API Z (높이)
-            array[i + 2] = apiY; // Three.js Z = API Y
+        // PLY는 rtabmap world frame(z=up). Three.js 기본은 y=up이라 (x,y,z) →
+        // (-x, z, y)로 swap해야 정상 세움. -x는 ROS REP-103 right-handed ↔
+        // Three left-handed 보정.
+        const pos = geo.getAttribute("position");
+        if (pos) {
+          const arr = pos.array as Float32Array;
+          for (let i = 0; i < arr.length; i += 3) {
+            const x = arr[i];
+            const y = arr[i + 1];
+            const z = arr[i + 2];
+            arr[i] = -x;
+            arr[i + 1] = z;
+            arr[i + 2] = y;
           }
-          positions.needsUpdate = true;
+          pos.needsUpdate = true;
         }
         geo.computeBoundingBox();
         geo.computeBoundingSphere();
@@ -208,6 +212,42 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
       return;
     }
 
+    // 코너 (add-corner): area에 폴리곤 row 1개 추가. draft 누적은 store에. 닫기는 별도 버튼.
+    if (editorMode === "add-corner") {
+      if (!selectedAreaId) { toast.error("Area를 먼저 선택하세요."); return; }
+      usePolygonStore.getState().addDraftVertex({ x: apiCoords.x, y: apiCoords.y, z: apiCoords.z });
+      return;
+    }
+
+    // 층간이동 stop (add-vertical-stop): active connector에 stop attach. 가까운 노드면 그 노드,
+    // 빈 공간이면 새 corridor 노드 만든 후 그 노드 ID로 attach.
+    if (editorMode === "add-vertical-stop") {
+      if (!selectedAreaId) { toast.error("Area를 먼저 선택하세요."); return; }
+      const { nodes } = useGraphEditorStore.getState();
+      const connectorStore = useConnectorStore.getState();
+      if (!connectorStore.activeConnectorId) { toast.error("active connector 없음 — 모달로 먼저 생성"); return; }
+      let routeNodeId: string | undefined;
+      let nearest: PathNodeResponse | null = null;
+      let nearestDist = Infinity;
+      for (const n of nodes) {
+        const d = Math.hypot(n.x - apiCoords.x, n.y - apiCoords.y);
+        if (d < nearestDist) { nearestDist = d; nearest = n; }
+      }
+      try {
+        if (nearest && nearestDist < 0.5) {
+          routeNodeId = nearest.nodeId;
+        } else {
+          const newNode = await graphApi.createNode(selectedAreaId, {
+            x: apiCoords.x, y: apiCoords.y, z: apiCoords.z, nodeType: "corridor",
+          });
+          useGraphEditorStore.setState({ nodes: [...nodes, newNode] });
+          routeNodeId = newNode.nodeId;
+        }
+        await connectorStore.addStop(connectorStore.activeConnectorId, { areaId: selectedAreaId, routeNodeId });
+      } catch { toast.error("stop 추가 실패"); }
+      return;
+    }
+
     // 노드 배치
     if (editorMode !== "add-node" || !selectedAreaId) {
       if (editorMode === "add-node" && !selectedAreaId) {
@@ -243,7 +283,11 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
 
   if (!geometry) return null;
 
-  const showClickPlane = editorMode === "add-node" || isPlacementMode;
+  const showClickPlane =
+    editorMode === "add-node" ||
+    editorMode === "add-corner" ||
+    editorMode === "add-vertical-stop" ||
+    isPlacementMode;
 
   return (
     <group>
@@ -262,7 +306,7 @@ export function PointcloudMesh({ plyUrl }: PointcloudMeshProps) {
           position={[floorPlane.centerX, floorPlane.floorY, floorPlane.centerZ]}
           rotation={[-Math.PI / 2, 0, 0]}
           onClick={handlePlaneClick}
-          onPointerOver={() => { if (editorMode === "add-node" || isPlacementMode) document.body.style.cursor = "crosshair"; }}
+          onPointerOver={() => { if (showClickPlane) document.body.style.cursor = "crosshair"; }}
           onPointerOut={() => { document.body.style.cursor = "auto"; }}
           renderOrder={-1}
         >

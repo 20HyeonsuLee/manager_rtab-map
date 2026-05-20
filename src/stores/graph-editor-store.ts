@@ -4,7 +4,7 @@ import * as api from "@/api";
 import { useViewerStore } from "./viewer-store";
 import type { PathNodeResponse, PathEdgeResponse, NodeType, EdgeType, EdgeUpdateRequest } from "@/types";
 
-export type EditorMode = "view" | "add-node" | "add-edge" | "select";
+export type EditorMode = "view" | "add-node" | "add-edge" | "select" | "add-corner" | "add-vertical-stop";
 export type PlaceableNodeType = "corridor" | "junction" | "endpoint" | "poi_attach";
 
 interface GraphEditorState {

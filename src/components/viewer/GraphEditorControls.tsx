@@ -1,11 +1,13 @@
-import { MousePointer, Plus, GitBranch, Hand, Trash2, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { MousePointer, Plus, GitBranch, Hand, Trash2, RotateCcw, Square, MoveVertical, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useGraphEditorStore, useViewerStore } from "@/stores";
+import { useGraphEditorStore, useViewerStore, usePolygonStore, useConnectorStore, useBuildingStore } from "@/stores";
 import type { EditorMode, PlaceableNodeType } from "@/stores/graph-editor-store";
+import { NewConnectorDialog } from "./NewConnectorDialog";
 
 const NODE_TYPE_LABELS: Record<string, string> = {
   corridor: "복도",
@@ -37,6 +39,18 @@ export function GraphEditorControls() {
   const setNodeTypeToPlace = useGraphEditorStore((s) => s.setNodeTypeToPlace);
   const autoConnect = useGraphEditorStore((s) => s.autoConnect);
   const setAutoConnect = useGraphEditorStore((s) => s.setAutoConnect);
+  const draftVertices = usePolygonStore((s) => s.draftVertices);
+  const commitDraftAsCorner = usePolygonStore((s) => s.commitDraftAsCorner);
+  const clearDraft = usePolygonStore((s) => s.clearDraft);
+  const popDraftVertex = usePolygonStore((s) => s.popDraftVertex);
+  const activeConnectorId = useConnectorStore((s) => s.activeConnectorId);
+  const activeConnectorType = useConnectorStore((s) => s.activeConnectorType);
+  const finishActiveConnector = useConnectorStore((s) => s.finishActiveConnector);
+  const activeConnector = useConnectorStore((s) =>
+    s.connectors.find((c) => c.connectorId === s.activeConnectorId),
+  );
+  const selectedBuildingId = useBuildingStore((s) => s.currentBuilding?.buildingId ?? null);
+  const [connectorDialogOpen, setConnectorDialogOpen] = useState(false);
 
   const selectedNode = nodes.find((n) => n.nodeId === selectedNodeId);
   const selectedEdge = edges.find((e) => e.edgeId === selectedEdgeId);
@@ -70,8 +84,86 @@ export function GraphEditorControls() {
             <MousePointer className="h-3.5 w-3.5" />
             선택
           </ToggleGroupItem>
+          <ToggleGroupItem value="add-corner" className="flex-1 text-xs gap-1">
+            <Square className="h-3.5 w-3.5" />
+            코너
+          </ToggleGroupItem>
+          <ToggleGroupItem value="add-vertical-stop" className="flex-1 text-xs gap-1">
+            <MoveVertical className="h-3.5 w-3.5" />
+            층간
+          </ToggleGroupItem>
         </ToggleGroup>
       </div>
+
+      {/* Corner draft panel */}
+      {editorMode === "add-corner" && (
+        <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2">
+          <p className="text-[11px] text-muted-foreground">
+            클릭으로 코너 vertex 누적: <span className="font-mono font-medium text-foreground">{draftVertices.length}</span>
+          </p>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="default"
+              className="flex-1 text-xs"
+              disabled={draftVertices.length < 3 || !selectedAreaId}
+              onClick={() => selectedAreaId && commitDraftAsCorner(selectedAreaId)}
+            >
+              <Check className="mr-1 h-3 w-3" />
+              닫기 / 저장
+            </Button>
+            <Button size="sm" variant="outline" className="text-xs" onClick={popDraftVertex} disabled={draftVertices.length === 0}>
+              ↶
+            </Button>
+            <Button size="sm" variant="outline" className="text-xs" onClick={clearDraft} disabled={draftVertices.length === 0}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Vertical connector progress panel */}
+      {editorMode === "add-vertical-stop" && (
+        <div className="space-y-2 rounded-md border border-indigo-500/30 bg-indigo-500/5 p-2">
+          {activeConnectorId && activeConnector ? (
+            <>
+              <p className="text-[11px] text-muted-foreground">
+                활성 connector: <span className="font-mono font-medium text-foreground">{activeConnector.connectorKey}</span>
+                <span className="ml-1 text-[10px] text-muted-foreground">({activeConnectorType})</span>
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                stops <span className="font-mono font-medium text-foreground">{activeConnector.stops.length}</span> / 층 전환 후 클릭으로 추가
+              </p>
+              <Button size="sm" variant="outline" className="w-full text-xs" onClick={finishActiveConnector}>
+                <Check className="mr-1 h-3 w-3" />
+                완료
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-[11px] text-muted-foreground">connector를 먼저 생성하세요</p>
+              <Button
+                size="sm"
+                variant="default"
+                className="w-full text-xs"
+                onClick={() => setConnectorDialogOpen(true)}
+                disabled={!selectedBuildingId}
+              >
+                <Plus className="mr-1 h-3 w-3" />
+                새 connector
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {selectedBuildingId && (
+        <NewConnectorDialog
+          open={connectorDialogOpen}
+          onOpenChange={setConnectorDialogOpen}
+          buildingId={selectedBuildingId}
+        />
+      )}
 
       {/* Node Type Selector (add-node mode only) */}
       {editorMode === "add-node" && (

@@ -9,6 +9,7 @@ import { POIOverlay } from "./POIOverlay";
 import { PendingPOIMarker } from "./PendingPOIMarker";
 import { PointcloudMesh } from "./PointcloudMesh";
 import { GraphEditorOverlay } from "./GraphEditorOverlay";
+import { PolygonOverlay } from "./PolygonOverlay";
 
 /* ── 상수 ──────────────────────────────────────────────────────── */
 const MOVE_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE",
@@ -246,6 +247,7 @@ function SceneContent() {
       />
       {showPointcloud && <PointcloudMesh plyUrl={plyUrl} />}
       {isEditorActive && <GraphEditorOverlay />}
+      <PolygonOverlay />
       <POIOverlay />
       <PendingPOIMarker />
       {viewMode === "fps" ? <FPSCameraController /> : <OrbitCameraController />}
@@ -272,6 +274,8 @@ const MODE_SLOTS = [
   { key: "3", id: "edge", label: "엣지" },
   { key: "4", id: "select", label: "선택" },
   { key: "5", id: "poi", label: "POI 배치" },
+  { key: "6", id: "corner", label: "코너" },
+  { key: "7", id: "vertical", label: "층간" },
 ] as const;
 
 function selectMode(slotId: string) {
@@ -283,6 +287,8 @@ function selectMode(slotId: string) {
     case "edge": store.setEditorMode("add-edge"); poi.setPlacementMode(false); break;
     case "select": store.setEditorMode("select"); poi.setPlacementMode(false); break;
     case "poi": store.setEditorMode("view"); poi.setPlacementMode(true); break;
+    case "corner": store.setEditorMode("add-corner"); poi.setPlacementMode(false); break;
+    case "vertical": store.setEditorMode("add-vertical-stop"); poi.setPlacementMode(false); break;
   }
 }
 
